@@ -1,1 +1,1 @@
-﻿tansaku.Board.Game().Play()
+﻿tansaku.BoardGame.Game().Play()

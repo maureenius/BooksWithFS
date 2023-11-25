@@ -7,12 +7,22 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Content Include="..\.dockerignore">
-        <Link>.dockerignore</Link>
-      </Content>
-      <Content Include="Dockerfile" />
-      <Compile Include="Board\Game.fs" />
-      <Folder Include="Strategy\" />
+        <Content Include="..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
+        <Content Include="Dockerfile"/>
+        <Compile Include="BoardGame\Turn.fs" />
+        <Compile Include="BoardGame\Score.fs" />
+        <Compile Include="BoardGame\Height.fs" />
+        <Compile Include="BoardGame\Width.fs" />
+        <Compile Include="BoardGame\Coordinate.fs" />
+        <Compile Include="BoardGame\Board.fs" />
+        <Compile Include="BoardGame\Action.fs" />
+        <Compile Include="BoardGame\StateValue.fs" />
+        <Compile Include="BoardGame\State.fs" />
+        <Compile Include="BoardGame\Game.fs" />
+
+        <Folder Include="Strategy\"/>
     </ItemGroup>
 
     <ItemGroup>
