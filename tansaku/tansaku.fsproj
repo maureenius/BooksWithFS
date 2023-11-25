@@ -7,14 +7,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="Program.fs"/>
-    </ItemGroup>
-
-    <ItemGroup>
       <Content Include="..\.dockerignore">
         <Link>.dockerignore</Link>
       </Content>
       <Content Include="Dockerfile" />
+      <Compile Include="Board\Game.fs" />
+      <Folder Include="Strategy\" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Compile Include="Program.fs"/>
+    </ItemGroup>
 </Project>
