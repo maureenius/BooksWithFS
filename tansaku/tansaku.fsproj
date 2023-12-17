@@ -24,6 +24,8 @@
         <Compile Include="Strategy\IStrategy.fs" />
 
         <Compile Include="Strategy\Random.fs" />
+
+        <Compile Include="Strategy\Greedy.fs" />
     </ItemGroup>
 
     <ItemGroup>

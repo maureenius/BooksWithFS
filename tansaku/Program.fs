@@ -18,7 +18,7 @@ let playMultipleGames (strategy: IStrategy) (n: int) =
 
 [<EntryPoint>]
 let main args =
-    let strategy = Random()
+    let strategy = Greedy()
     
     match args with
     | [| "-single" |] -> 
