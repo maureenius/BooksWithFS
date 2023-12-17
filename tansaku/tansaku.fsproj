@@ -11,6 +11,7 @@
             <Link>.dockerignore</Link>
         </Content>
         <Content Include="Dockerfile"/>
+        <Compile Include="Common\Random.fs" />
         <Compile Include="BoardGame\Turn.fs" />
         <Compile Include="BoardGame\Score.fs" />
         <Compile Include="BoardGame\Height.fs" />

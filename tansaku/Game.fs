@@ -7,9 +7,7 @@ open tansaku.BoardGame.Turns
 open tansaku.Strategy
 
 type Game(strategy: IStrategy) =
-    let initialCharacter: Coordinate =
-        new System.Random()
-        |> fun rnd -> { H = rnd.Next(Game.Height.Value); W = rnd.Next(Game.Width.Value) }
+    let initialCharacter: Coordinate = { H = Common.Random.rnd.Next(Game.Height.Value); W = Common.Random.rnd.Next(Game.Width.Value) }
     
     let mutable state: StateValue =
         {
@@ -40,7 +38,7 @@ type Game(strategy: IStrategy) =
         if zero.H = h && zero.W = w then
             0
         else
-            System.Random() |> fun rnd -> rnd.Next(Game.ScoreMax.Value)
+            Common.Random.rnd.Next(Game.ScoreMax.Value)
     
     member private this.View() =
         stdout.WriteLine (State(state).View() |> String.concat "\n")
