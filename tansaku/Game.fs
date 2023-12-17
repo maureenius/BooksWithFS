@@ -25,6 +25,8 @@ type Game(strategy: IStrategy) =
     
     static member val ScoreMax: Score = { Value = 9 }
     
+    member this.Score: Score = state.Score
+    
     member this.Play() =
         this.StartGame()
 
