@@ -1,3 +1,7 @@
 namespace tansaku.BoardGame
 
-type Turn = { Value : int }
+module Turns =
+    type Turn = { Value : int }
+
+    let (+) (a: Turn) (b: Turn): Turn =
+        { Value = a.Value + b.Value }

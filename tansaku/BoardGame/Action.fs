@@ -1,26 +1,28 @@
 namespace tansaku.BoardGame
 
 module Action =
-    let MoveNorth (coordinate:Coordinate): Coordinate =
-        { X = coordinate.X; Y = coordinate.Y - 1 }
-    
-    let MoveSouth (coordinate:Coordinate): Coordinate =
-        { X = coordinate.X; Y = coordinate.Y + 1 }
-        
-    let MoveEast (coordinate:Coordinate): Coordinate =
-        { X = coordinate.X + 1; Y = coordinate.Y }
+    type IMoveAction =
+        abstract member Execute: Coordinate -> Coordinate
+        abstract member Name: string
 
-    let MoveWest (coordinate:Coordinate): Coordinate =
-            { X = coordinate.X - 1; Y = coordinate.Y }
+    type MoveNorth() =
+        interface IMoveAction with
+            member this.Execute coordinate = { X = coordinate.X; Y = coordinate.Y - 1 }
+            member this.Name = "MoveNorth"
     
-    type MoveActions = MoveNorth | MoveSouth | MoveEast | MoveWest
+    type MoveSouth() =
+        interface IMoveAction with
+            member this.Execute coordinate = { X = coordinate.X; Y = coordinate.Y + 1 }
+            member this.Name = "MoveSouth"
     
-    let ActionName(action: MoveActions option): string =
-        match action with
-        | Some validAction ->
-            match validAction with
-            | MoveEast _ -> "MoveEast"
-            | MoveNorth _ -> "MoveNorth"
-            | MoveSouth _ -> "MoveSouth"
-            | MoveWest _ -> "MoveWest"
-        | None _ -> "None"
+    type MoveEast() =
+        interface IMoveAction with
+            member this.Execute coordinate = { X = coordinate.X + 1; Y = coordinate.Y }
+            member this.Name = "MoveEast"
+
+    type MoveWest() =
+        interface IMoveAction with
+            member this.Execute coordinate = { X = coordinate.X - 1; Y = coordinate.Y }
+            member this.Name = "MoveWest"
+
+    let AllMoveActions: IMoveAction list = [ MoveNorth(); MoveSouth(); MoveEast(); MoveWest() ]

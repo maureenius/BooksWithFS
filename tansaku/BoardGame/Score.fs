@@ -1,3 +1,8 @@
 namespace tansaku.BoardGame
 
-type Score = { Value : int }
+module Scores =
+
+    type Score = { Value : int }
+
+    let (+) (a: Score) (b: Score): Score =
+        { Value = a.Value + b.Value }

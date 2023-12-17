@@ -20,12 +20,13 @@
         <Compile Include="BoardGame\Action.fs" />
         <Compile Include="BoardGame\StateValue.fs" />
         <Compile Include="BoardGame\State.fs" />
-        <Compile Include="BoardGame\Game.fs" />
+        <Compile Include="Strategy\IStrategy.fs" />
 
-        <Folder Include="Strategy\"/>
+        <Compile Include="Strategy\Random.fs" />
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="Game.fs" />
         <Compile Include="Program.fs"/>
     </ItemGroup>
 </Project>

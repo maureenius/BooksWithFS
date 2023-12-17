@@ -1,1 +1,3 @@
-﻿tansaku.BoardGame.Game().Play()
+﻿open tansaku.Strategy
+
+tansaku.Game(Random()).Play()
