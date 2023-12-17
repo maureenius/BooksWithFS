@@ -1,3 +1,3 @@
 namespace tansaku.BoardGame
 
-type Coordinate = { X : int; Y : int }
+type Coordinate = { H : int; W : int }

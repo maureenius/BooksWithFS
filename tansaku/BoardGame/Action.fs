@@ -7,22 +7,22 @@ module Action =
 
     type MoveNorth() =
         interface IMoveAction with
-            member this.Execute coordinate = { X = coordinate.X; Y = coordinate.Y - 1 }
+            member this.Execute coordinate = { H = coordinate.H - 1; W = coordinate.W }
             member this.Name = "MoveNorth"
     
     type MoveSouth() =
         interface IMoveAction with
-            member this.Execute coordinate = { X = coordinate.X; Y = coordinate.Y + 1 }
+            member this.Execute coordinate = { H = coordinate.H + 1; W = coordinate.W }
             member this.Name = "MoveSouth"
     
     type MoveEast() =
         interface IMoveAction with
-            member this.Execute coordinate = { X = coordinate.X + 1; Y = coordinate.Y }
+            member this.Execute coordinate = { H = coordinate.H; W = coordinate.W + 1 }
             member this.Name = "MoveEast"
 
     type MoveWest() =
         interface IMoveAction with
-            member this.Execute coordinate = { X = coordinate.X - 1; Y = coordinate.Y }
+            member this.Execute coordinate = { H = coordinate.H; W = coordinate.W - 1 }
             member this.Name = "MoveWest"
 
     let AllMoveActions: IMoveAction list = [ MoveNorth(); MoveSouth(); MoveEast(); MoveWest() ]
