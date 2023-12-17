@@ -35,13 +35,13 @@ type State(value: StateValue) =
     member private this.BoardView() =
         let height, width = Array2D.length1 value.Board.Value, Array2D.length2 value.Board.Value
 
-        [ for y in 0 .. height - 1 do
+        [ for h in 0 .. height - 1 do
             let row =
-                [ for x in 0 .. width - 1 do
-                    let coordinate: Coordinate = { X = x; Y = y }
+                [ for w in 0 .. width - 1 do
+                    let coordinate: Coordinate = { H = h; W = w }
                     if this.ExistCharacter(coordinate) then "@"
-                    elif value.Board.Value[y, x] = 0 then "."
-                    else value.Board.Value[y, x].ToString() ]
+                    elif value.Board.Value[h, w] = 0 then "."
+                    else value.Board.Value[h, w].ToString() ]
                 |> String.concat ""
             yield row ]
         |> String.concat "\n"
@@ -56,6 +56,6 @@ type State(value: StateValue) =
     member private this.Move (action: IMoveAction, state: StateValue): StateValue =
         action.Execute state.Character
         |> fun coordinate -> { state with Character = coordinate }
-        |> fun state -> { state with Score = state.Score + { Value = state.Board.Value.[state.Character.X, state.Character.Y] } }
+        |> fun state -> { state with Score = state.Score + { Value = state.Board.Value.[state.Character.H, state.Character.W] } }
         |> fun state -> { state with Board = state.Board.Set(state.Character, 0) }
         |> fun state -> { state with BeforeAction = Some action }

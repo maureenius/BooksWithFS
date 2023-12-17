@@ -9,12 +9,12 @@ open tansaku.Strategy
 type Game(strategy: IStrategy) =
     let initialCharacter: Coordinate =
         new System.Random()
-        |> fun rnd -> { X = rnd.Next(Game.Height.Value); Y = rnd.Next(Game.Width.Value) }
+        |> fun rnd -> { H = rnd.Next(Game.Height.Value); W = rnd.Next(Game.Width.Value) }
     
     let mutable state: StateValue =
         {
             Score = { Value = 0 }
-            Turn = { Value = 1 }
+            Turn = { Value = 0 }
             Board =
                 { Value = Array2D.init Game.Height.Value Game.Width.Value (Game.CreateBoardValue initialCharacter) }
             Character = initialCharacter
@@ -37,7 +37,7 @@ type Game(strategy: IStrategy) =
         this.FinishGame()
     
     static member private CreateBoardValue (zero: Coordinate) (h: int) (w: int): int =
-        if zero.X = w && zero.Y = h then
+        if zero.H = h && zero.W = w then
             0
         else
             System.Random() |> fun rnd -> rnd.Next(Game.ScoreMax.Value)
