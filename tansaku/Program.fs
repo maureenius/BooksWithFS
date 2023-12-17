@@ -13,8 +13,8 @@ let playMultipleGames (strategy: IStrategy) (n: int) =
         game.Play()
         totalScore <- totalScore + game.Score
     
-    let average = totalScore.Value / n
-    printfn $"Average score: %d{average}"
+    let average = float totalScore.Value / float n
+    printfn $"Average score: %f{average}"
 
 [<EntryPoint>]
 let main args =
