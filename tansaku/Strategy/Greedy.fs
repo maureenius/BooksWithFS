@@ -10,3 +10,5 @@ type Greedy() =
             |> List.map (fun action -> (action, state.NextState(action)))
             |> List.maxBy (fun (_, nextState) -> nextState.Score)
             |> fst
+
+        member this.Name = "貪欲法"
