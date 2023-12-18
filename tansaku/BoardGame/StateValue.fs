@@ -8,6 +8,7 @@ module StateValues =
     type StateValue = {
         Score : Score
         Turn : Turn
+        EndTurn : Turn
         Board : Board
         Character : Coordinate
         BeforeAction : IMoveAction option

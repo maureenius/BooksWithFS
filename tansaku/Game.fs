@@ -18,6 +18,7 @@ type Game(strategy: IStrategy, ?initialState: StateValue) =
             {
               Score = { Value = 0 }
               Turn = { Value = 0 }
+              EndTurn = Game.EndTurn 
               Board =
                 { Value = Array2D.init Game.Height.Value Game.Width.Value (Game.CreateBoardValue initialCharacter) }
               Character = initialCharacter

@@ -5,3 +5,6 @@ module Turns =
 
     let (+) (a: Turn) (b: Turn): Turn =
         { Value = a.Value + b.Value }
+    
+    let (-) (a: Turn) (b: Turn): Turn =
+        { Value = a.Value - b.Value }

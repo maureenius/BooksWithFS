@@ -10,6 +10,7 @@ type State(value: StateValue) =
         {
             Score = value.Score
             Turn = Turns.(+) value.Turn { Value = 1 }
+            EndTurn = value.EndTurn 
             Board = value.Board
             Character = value.Character
             BeforeAction = value.BeforeAction
@@ -20,8 +21,8 @@ type State(value: StateValue) =
         [this.ActionView(); this.TurnView(); this.ScoreView(); this.BoardView()]
     
     member this.EnableActions(): IMoveAction list =
-        AllMoveActions
-        |> List.filter (fun action -> this.CanMove(value.Character, action))
+        if (value.EndTurn - value.Turn).Value <= 0 then []
+        else AllMoveActions |> List.filter (fun action -> this.CanMove(value.Character, action))
 
     member private this.ActionView() =
         $"""action: %s{value.BeforeAction |> Option.map (fun action -> action.Name) |> Option.defaultValue "None" }"""
