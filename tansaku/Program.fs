@@ -37,7 +37,7 @@ let compare (strategies: IStrategy list) (times: int) =
 
 [<EntryPoint>]
 let main args =
-    let strategy = Greedy()
+    let strategy = BeamSearch(2, 2)
     
     match args with
     | [| "-single" |] -> 
