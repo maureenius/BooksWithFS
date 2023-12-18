@@ -1,10 +1,22 @@
 ﻿open System
 open tansaku
+open tansaku.BoardGame.Turns
 open tansaku.BoardGame.Scores
 open tansaku.Strategy
 
 let playGame (strategy: IStrategy) =
     Game(strategy).Play()
+
+let playFixedGame (strategy: IStrategy) =
+    let state: tansaku.BoardGame.StateValues.StateValue = {
+        Score = { Value = 0 }
+        Turn = { Value = 0 }
+        Board = { Value = array2D [[4; 6; 1; 3]; [0; 0; 2; 0]; [7; 5; 6; 6]] }
+        Character = { H = 1; W = 1 }
+        BeforeAction = None 
+    }
+    Game(strategy, state)
+    |> fun game -> game.Play()
 
 let playMultipleGames (strategy: IStrategy) (n: int): float =
     let mutable totalScore: Score = { Value = 0 }
@@ -30,6 +42,9 @@ let main args =
     match args with
     | [| "-single" |] -> 
         playGame strategy
+        0  // 正常終了
+    | [| "-fixed" |] ->
+        playFixedGame strategy
         0  // 正常終了
     | [| "-average"; times |] ->
         let mutable timesInt = 0
