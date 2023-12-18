@@ -8,24 +8,24 @@ type BeamSearch(depth: int, width: int) =
     interface IStrategy with
         member this.Name = "ビームサーチ"
         member this.SelectAction(state: State): IMoveAction =
-            let rec search (currentStates: (State * IMoveAction option) list) (depth: int): (State * IMoveAction option) list =
+            let rec search (currentStates: (State * IMoveAction list) list) (depth: int): (State * IMoveAction list) list =
                 match depth with
                 | 0 -> currentStates
                 | _ ->
                     currentStates
-                    |> List.collect (fun (st, _) ->
-                        st.EnableActions() |> List.map (fun action -> (State(st.NextState(action)), Some action)))
+                    |> List.collect (fun (st, actions) ->
+                        st.EnableActions() |> List.map (fun next -> (State(st.NextState(next)), actions @ [next])))
                     |> List.sortByDescending (fun (st, _) -> st.Score.Value)
                     |> List.take width
                     |> fun nextStates -> search nextStates (depth - 1)
             
-            let initialStates = [(state, None)]
+            let initialStates = [(state, [])]
             let resultStates = search initialStates depth
             
             resultStates
             |> List.maxBy (fun (st, _) -> st.Score.Value)
             |> snd
-            |> Option.get
+            |> List.head
     
     member private this.NextStates(state: State): (IMoveAction * StateValue) list =
         state.EnableActions()
