@@ -16,6 +16,8 @@ type State(value: StateValue) =
         }
         |> fun state -> this.Move(action, state)
     
+    member this.Score = value.Score
+    
     member this.View(): string list =
         [this.ActionView(); this.TurnView(); this.ScoreView(); this.BoardView()]
     

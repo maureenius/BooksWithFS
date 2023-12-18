@@ -26,6 +26,8 @@
         <Compile Include="Strategy\Random.fs" />
 
         <Compile Include="Strategy\Greedy.fs" />
+
+        <Compile Include="Strategy\BeamSearch.fs" />
     </ItemGroup>
 
     <ItemGroup>
