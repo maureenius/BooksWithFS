@@ -28,10 +28,19 @@ let initialize: Game =
         Creatures = creatures
     }
 
+type Coordinate =
+    {
+        X: int
+        Y: int
+    }
+    member this.DistanceTo(other: Coordinate) =
+        let dx = this.X - other.X
+        let dy = this.Y - other.Y
+        dx * dx + dy * dy
+
 type Creature = {
     Id: int
-    X: int
-    Y: int
+    Coordinate: Coordinate
     Vx: int
     Vy: int
 }
@@ -43,8 +52,7 @@ type DroneScan = {
 
 type Drone = {
     Id: int
-    X: int
-    Y: int
+    Coordinate: Coordinate
     Emergency: int
     Battery: int
 }
@@ -88,8 +96,7 @@ type Reader() =
         |> List.map (fun line -> line.Split [|' '|])
         |> List.map (fun token -> {
             Id = int(token[0])
-            X = int(token[1])
-            Y = int(token[2])
+            Coordinate = { X = int(token[1]); Y = int(token[2])}
             Vx = int(token[3])
             Vy = int(token[4])
         })
@@ -100,8 +107,7 @@ type Reader() =
         |> List.map (fun line -> line.Split [|' '|])
         |> List.map (fun token -> {
             Id = int(token[0])
-            X = int(token[1])
-            Y = int(token[2])
+            Coordinate = { X = int(token[1]); Y = int(token[2])}
             Emergency = int(token[3])
             Battery = int(token[4])
         })
@@ -137,9 +143,9 @@ type Wait(light: int) =
     interface IAction with
         member this.ToString() = $"WAIT {light}"
 
-type Move(x: int, y: int, light: int) =
+type Move(coordinate: Coordinate, light: int) =
     interface IAction with
-        member this.ToString() = $"MOVE {x} {y} {light}"
+        member this.ToString() = $"MOVE {coordinate.X} {coordinate.Y} {light}"
 
 type IStrategy =
     abstract member NextAction: GameData -> IAction
@@ -147,11 +153,20 @@ type IStrategy =
 type Drifter(light: int) =
     interface IStrategy with
         member this.NextAction _ = Wait(light)
-  
+
+type Nearest() =
+    let nearestFish gameData =
+        gameData.VisibleCreatures
+        |> List.filter (fun creature -> not (List.contains creature.Id gameData.MyScanCount))
+        |> List.minBy (fun creature -> creature.Coordinate.DistanceTo(gameData.MyDrones.Head.Coordinate))
+
+    interface IStrategy with
+        member this.NextAction gameData = Move((nearestFish gameData).Coordinate, 0)
+
 let game = initialize
 let reader = Reader()
 let writer = Writer()
-let strategy: IStrategy = Drifter(0)
+let strategy: IStrategy = Nearest()
 
 while true do
     let gameData = reader.ReadGameData()
