@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "tansaku", "tansaku\tansaku.fsproj", "{AD3ECA10-FCE0-4649-ACA4-DBA032651E8D}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "CodingameFallChallenge2023", "CodingameFallChallenge2023\CodingameFallChallenge2023.fsproj", "{8B624ABF-FAA1-4050-9109-7B6F18E965CD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -16,5 +18,9 @@ Global
 		{B4D73ED0-26D8-44E5-A963-460EAE0E659A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B4D73ED0-26D8-44E5-A963-460EAE0E659A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B4D73ED0-26D8-44E5-A963-460EAE0E659A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8B624ABF-FAA1-4050-9109-7B6F18E965CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B624ABF-FAA1-4050-9109-7B6F18E965CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B624ABF-FAA1-4050-9109-7B6F18E965CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B624ABF-FAA1-4050-9109-7B6F18E965CD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
