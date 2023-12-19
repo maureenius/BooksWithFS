@@ -73,6 +73,8 @@ type GameData = {
     DroneScans: DroneScan list
     VisibleCreatures: Creature list
     RadarBlips: RadarBlip list
+    CurrentTurn: int
+    MaxTurn: int
 }
 
 type IAction =
@@ -122,7 +124,7 @@ type Reader() =
             Radar = token[2]
         })
 
-    let readGameData(): GameData = {
+    let readGameData(maxTurn: int, currentTurn: int): GameData = {
         MyScore = readInt()
         FoeScore = readInt()
         MyScanCount = [0 .. readInt() - 1] |> List.map (fun _ -> readInt())
@@ -131,10 +133,12 @@ type Reader() =
         FoeDrones = readDrones (readInt())
         DroneScans = readDroneScans (readInt()) 
         VisibleCreatures = readCreatures (readInt())
-        RadarBlips = readRadars (readInt()) 
+        RadarBlips = readRadars (readInt())
+        CurrentTurn = currentTurn
+        MaxTurn = maxTurn
     }
 
-    member this.ReadGameData() = readGameData()
+    member this.ReadGameData(maxTurn: int, currentTurn: int) = readGameData(maxTurn, currentTurn)
 
 type Writer() =
     member this.WriteAction(action: IAction) = Console.Out.WriteLine(action.ToString())
@@ -163,15 +167,19 @@ type Nearest() =
     interface IStrategy with
         member this.NextAction gameData = Move((nearestFish gameData).Coordinate, 0)
 
-let game = initialize
-let reader = Reader()
-let writer = Writer()
-let strategy: IStrategy = Nearest()
-
-while true do
-    let gameData = reader.ReadGameData()
-    stderr.WriteLine $"GameData: %A{gameData}" 
+type GamePlay() =
+    let MaxTurn = 200
     
-    strategy.NextAction(gameData) |> writer.WriteAction
+    member this.Play() =
+        let game = initialize
+        let reader = Reader()
+        let writer = Writer()
+        let strategy: IStrategy = Nearest()
 
-    ()
+        [1 .. MaxTurn]
+        |> List.iter (fun turn -> 
+            let gameData = reader.ReadGameData(MaxTurn, turn)
+            strategy.NextAction(gameData) |> writer.WriteAction
+        )
+
+GamePlay().Play()
