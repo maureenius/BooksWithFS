@@ -151,6 +151,17 @@ type Move(coordinate: Coordinate, light: int) =
     interface IAction with
         member this.ToString() = $"MOVE {coordinate.X} {coordinate.Y} {light}"
 
+module GameLogic =
+    let surface = 500
+    let droneSpeed = 600
+    
+    let shouldReturnToSurface (gameData: GameData) (drone: Drone) =
+        let distanceToSurface = drone.Coordinate.Y - surface 
+        let turnsToSurface = distanceToSurface / droneSpeed   // 水面に戻るのに必要なターン数
+        let buffer = 10
+        let remainingTurns = gameData.MaxTurn - gameData.CurrentTurn // 残りターン数
+        turnsToSurface >= remainingTurns - buffer
+
 type IStrategy =
     abstract member NextAction: GameData -> IAction
 
@@ -165,7 +176,12 @@ type Nearest() =
         |> List.minBy (fun creature -> creature.Coordinate.DistanceTo(gameData.MyDrones.Head.Coordinate))
 
     interface IStrategy with
-        member this.NextAction gameData = Move((nearestFish gameData).Coordinate, 0)
+        member this.NextAction gameData =
+            let drone = gameData.MyDrones.Head
+            if GameLogic.shouldReturnToSurface gameData drone then
+                Move({ X = drone.Coordinate.X; Y = GameLogic.surface }, 0)
+            else
+                Move((nearestFish gameData).Coordinate, 0)
 
 type GamePlay() =
     let MaxTurn = 200
