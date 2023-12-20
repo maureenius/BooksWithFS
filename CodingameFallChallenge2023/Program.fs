@@ -80,6 +80,11 @@ type GameData = {
 type IAction =
     abstract member ToString: unit -> string
 
+type Commands = {
+    Drone1Action: IAction
+    Drone2Action: IAction
+}
+
 type Reader() =
     let readInt() = Console.In.ReadLine() |> int
 
@@ -141,7 +146,9 @@ type Reader() =
     member this.ReadGameData(maxTurn: int, currentTurn: int) = readGameData(maxTurn, currentTurn) |> tap (fun gameData -> stderr.WriteLine gameData)
 
 type Writer() =
-    member this.WriteAction(action: IAction) = Console.Out.WriteLine(action.ToString())
+    member this.WriteAction(commands: Commands) =
+        Console.Out.WriteLine(commands.Drone1Action.ToString())
+        Console.Out.WriteLine(commands.Drone2Action.ToString())
 
 type Wait(light: int) =
     interface IAction with
@@ -163,11 +170,7 @@ module GameLogic =
         turnsToSurface >= remainingTurns - buffer
 
 type IStrategy =
-    abstract member NextAction: GameData -> IAction
-
-type Drifter(light: int) =
-    interface IStrategy with
-        member this.NextAction _ = Wait(light)
+    abstract member NextActions: GameData -> Commands
 
 type Nearest() =
     let nearestFish gameData =
@@ -190,7 +193,7 @@ type Nearest() =
         |> fun scans -> scans.Length > 0
     
     interface IStrategy with
-        member this.NextAction gameData =
+        member this.NextActions gameData =
             let drone = gameData.MyDrones.Head
             stderr.WriteLine $"drone: {drone}"
             
@@ -201,7 +204,10 @@ type Nearest() =
             stderr.WriteLine $"radarInfo: {radarInfo}"
 
             if GameLogic.shouldReturnToSurface gameData drone || hasUnscannedFish gameData then
-                Move({ X = drone.Coordinate.X; Y = GameLogic.surface }, 0)
+                {
+                    Drone1Action = Move({ X = drone.Coordinate.X; Y = GameLogic.surface }, 0)
+                    Drone2Action = Wait(0)
+                }
             else
                 let nextCoordinate: Coordinate option =
                     match radarInfo with
@@ -216,8 +222,8 @@ type Nearest() =
                 stderr.WriteLine $"nextCoordinate: {nextCoordinate}"    
                 
                 match nextCoordinate with
-                | Some coordinate -> Move(coordinate, 0)
-                | None -> Wait(0)
+                | Some coordinate -> { Drone1Action = Move(coordinate, 0); Drone2Action = Wait(0) }
+                | None -> { Drone1Action = Wait(0); Drone2Action = Wait(0) }
 
 type GamePlay() =
     let MaxTurn = 200
@@ -231,7 +237,7 @@ type GamePlay() =
         [1 .. MaxTurn]
         |> List.iter (fun turn -> 
             let gameData = reader.ReadGameData(MaxTurn, turn)
-            strategy.NextAction(gameData) |> writer.WriteAction
+            strategy.NextActions(gameData) |> writer.WriteAction
         )
 
 GamePlay().Play()
