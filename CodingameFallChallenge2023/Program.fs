@@ -138,7 +138,7 @@ type Reader() =
         MaxTurn = maxTurn
     }
 
-    member this.ReadGameData(maxTurn: int, currentTurn: int) = readGameData(maxTurn, currentTurn)
+    member this.ReadGameData(maxTurn: int, currentTurn: int) = readGameData(maxTurn, currentTurn) |> tap (fun gameData -> stderr.WriteLine gameData)
 
 type Writer() =
     member this.WriteAction(action: IAction) = Console.Out.WriteLine(action.ToString())
@@ -175,13 +175,49 @@ type Nearest() =
         |> List.filter (fun creature -> not (List.contains creature.Id gameData.MyScanCount))
         |> List.minBy (fun creature -> creature.Coordinate.DistanceTo(gameData.MyDrones.Head.Coordinate))
 
+    let isScanned gameData creatureId =
+        (List.contains creatureId gameData.MyScanCount) ||
+        (
+            gameData.DroneScans
+            |> List.filter (fun scan -> scan.DroneId = gameData.MyDrones.Head.Id)
+            |> List.exists (fun scan -> scan.CreatureId = creatureId)
+        )
+        
+    let hasUnscannedFish gameData =
+        gameData.DroneScans
+        |> List.filter (fun scan -> scan.DroneId = gameData.MyDrones.Head.Id)
+        |> List.filter (fun scan -> not (List.contains scan.CreatureId gameData.FoeScanCount))
+        |> fun scans -> scans.Length > 0
+    
     interface IStrategy with
         member this.NextAction gameData =
             let drone = gameData.MyDrones.Head
-            if GameLogic.shouldReturnToSurface gameData drone then
+            stderr.WriteLine $"drone: {drone}"
+            
+            let radarInfo =
+                gameData.RadarBlips
+                |> List.filter (fun blip -> not (isScanned gameData blip.CreatureId))
+                |> List.tryHead
+            stderr.WriteLine $"radarInfo: {radarInfo}"
+
+            if GameLogic.shouldReturnToSurface gameData drone || hasUnscannedFish gameData then
                 Move({ X = drone.Coordinate.X; Y = GameLogic.surface }, 0)
             else
-                Move((nearestFish gameData).Coordinate, 0)
+                let nextCoordinate: Coordinate option =
+                    match radarInfo with
+                    | Some blip ->
+                        match blip.Radar with
+                        | "TL" -> Some { X = drone.Coordinate.X - GameLogic.droneSpeed; Y = drone.Coordinate.Y - GameLogic.droneSpeed }
+                        | "TR" -> Some { X = drone.Coordinate.X + GameLogic.droneSpeed; Y = drone.Coordinate.Y - GameLogic.droneSpeed }
+                        | "BR" -> Some { X = drone.Coordinate.X + GameLogic.droneSpeed; Y = drone.Coordinate.Y + GameLogic.droneSpeed }
+                        | "BL" -> Some { X = drone.Coordinate.X - GameLogic.droneSpeed; Y = drone.Coordinate.Y + GameLogic.droneSpeed }
+                        | _    -> stderr.WriteLine "レーダー情報の読み込みに失敗"; None
+                    | None -> None
+                stderr.WriteLine $"nextCoordinate: {nextCoordinate}"    
+                
+                match nextCoordinate with
+                | Some coordinate -> Move(coordinate, 0)
+                | None -> Wait(0)
 
 type GamePlay() =
     let MaxTurn = 200
