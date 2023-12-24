@@ -1,16 +1,22 @@
 ﻿open System
+open Microsoft.FSharp.Core
 
 let tap f x = f x; x
 
 module GameData =
-    type CreatureInfo = {
+    type FishInfo = {
         Id : int
         Color : int
         Type : int
     }
+    
+    type MonsterInfo = {
+        Id: int
+    }
 
     type Game = {
-        Creatures: CreatureInfo list
+        Fishes: FishInfo list
+        Monsters: MonsterInfo list
     }
 
     type Coordinate =
@@ -23,7 +29,14 @@ module GameData =
             let dy = this.Y - other.Y
             dx * dx + dy * dy
 
-    type Creature = {
+    type Fish = {
+        Id: int
+        Coordinate: Coordinate
+        Vx: int
+        Vy: int
+    }
+    
+    type Monster = {
         Id: int
         Coordinate: Coordinate
         Vx: int
@@ -56,7 +69,7 @@ module GameData =
         MyDrones: Drone list
         FoeDrones: Drone list
         DroneScans: DroneScan list
-        VisibleCreatures: Creature list
+        VisibleCreatures: Fish list
         RadarBlips: RadarBlip list
         CurrentTurn: int
         MaxTurn: int
@@ -66,7 +79,7 @@ open GameData
 
 module Actions =
     type IAction =
-        abstract member ToString: unit -> string
+        abstract member Output: unit -> string
 
     type Commands = {
         Drone1Action: IAction
@@ -75,11 +88,11 @@ module Actions =
     
     type Wait(light: int) =
         interface IAction with
-            member this.ToString() = $"WAIT {light}"
+            member this.Output() = $"WAIT {light} Drifting..."
 
     type Move(coordinate: GameData.Coordinate, light: int) =
         interface IAction with
-            member this.ToString() = $"MOVE {coordinate.X} {coordinate.Y} {light}"
+            member this.Output() = $"MOVE {coordinate.X} {coordinate.Y} {light} MOVING!"
 
 open Actions
 
@@ -87,7 +100,7 @@ module IOHelper =
     let readInt() = Console.In.ReadLine() |> int
     
     let initialize: GameData.Game = 
-        let creatureCount = int(Console.In.ReadLine())
+        let creatureCount = readInt()
         let creatures =
             [0 .. creatureCount - 1]
             |> List.map (fun _ -> Console.In.ReadLine())
@@ -96,10 +109,11 @@ module IOHelper =
                 Id = int(token[0])
                 Color = int(token[1])
                 Type = int(token[2])
-            }): GameData.CreatureInfo list
+            })
 
         {
-            Creatures = creatures
+            Fishes = creatures |> List.filter (fun creature -> creature.Type <> -1)
+            Monsters = creatures |> List.filter (fun creature -> creature.Type = -1) |> List.map (fun creature -> { Id = creature.Id })
         }
 
     let readDroneScans (count: int): GameData.DroneScan list =
@@ -108,7 +122,7 @@ module IOHelper =
         |> List.map (fun line -> line.Split [|' '|])
         |> List.map (fun token -> { DroneId = int(token[0]); CreatureId = int(token[1]) })
 
-    let readCreatures (count: int): GameData.Creature list =
+    let readCreatures (count: int): GameData.Fish list =
         [0 .. count - 1]
         |> List.map (fun _ -> Console.In.ReadLine())
         |> List.map (fun line -> line.Split [|' '|])
@@ -155,8 +169,8 @@ module IOHelper =
     }
 
     let writeAction (commands: Actions.Commands) =
-        Console.Out.WriteLine(commands.Drone1Action.ToString()) |> tap (fun _ -> stderr.WriteLine (commands.Drone1Action.ToString()))
-        Console.Out.WriteLine(commands.Drone2Action.ToString()) |> tap (fun _ -> stderr.WriteLine (commands.Drone2Action.ToString()))
+        Console.Out.WriteLine(commands.Drone1Action.Output()) |> tap (fun _ -> stderr.WriteLine (commands.Drone1Action.Output()))
+        Console.Out.WriteLine(commands.Drone2Action.Output()) |> tap (fun _ -> stderr.WriteLine (commands.Drone2Action.Output()))
 
 module GameLogic =
     type GameLogic(game: GameData.Game, gameData: GameData.GameData) =
@@ -174,69 +188,39 @@ module GameLogic =
             $"{game}\n{gameData}"
         
         member this.ShallowFishes =
-            game.Creatures |> List.filter (fun creature -> creature.Type = 0)
+            game.Fishes |> List.filter (fun creature -> creature.Type = 0)
         
         member this.IsShallowClear = this.ShallowFishes |> List.isEmpty
         
         member this.MiddleFishes =
-            game.Creatures |> List.filter (fun creature -> creature.Type = 1)
+            game.Fishes |> List.filter (fun creature -> creature.Type = 1)
             
         member this.IsMiddleClear = this.MiddleFishes |> List.isEmpty
             
         member this.DeepFishes =
-            game.Creatures |> List.filter (fun creature -> creature.Type = 2)
+            game.Fishes |> List.filter (fun creature -> creature.Type = 2)
         
         member this.IsDeepClear = this.DeepFishes |> List.isEmpty
-        
-        member this.CreatureRadars (creature: CreatureInfo) =
-            gameData.RadarBlips
-            |> List.filter (fun blip -> blip.CreatureId = creature.Id)
             
-        member this.FindRadars (targets: CreatureInfo list): RadarBlip list =
+        member this.FindRadars (targets: FishInfo list): RadarBlip list =
             gameData.RadarBlips
             |> List.filter (fun blip -> List.contains blip.CreatureId (targets |> List.map (fun fish -> fish.Id)))
-        
-        member this.shouldLastReturnToSurface (drone: GameData.Drone) =
-            let distanceToSurface = drone.Coordinate.Y - surface 
-            let turnsToSurface = distanceToSurface / droneSpeed   // 水面に戻るのに必要なターン数
-            let buffer = 10
-            let remainingTurns = gameData.MaxTurn - gameData.CurrentTurn // 残りターン数
-            turnsToSurface >= remainingTurns - buffer
-        
-        member this.nearestFish (drone: Drone) =
-                gameData.VisibleCreatures
-                |> List.filter (fun creature -> not (List.contains creature.Id gameData.MyScanCount))
-                |> List.minBy (fun creature -> creature.Coordinate.DistanceTo(drone.Coordinate))
 
-        member this.IsSearchableFish (fish: Creature): bool =
-            fish.Coordinate.X >= 0 && fish.Coordinate.X <= width && fish.Coordinate.Y >= 0 && fish.Coordinate.Y <= height
-        
-        member this.IsSavedByMe (creature: CreatureInfo) =
+        member this.IsSavedByMe (creature: FishInfo) =
             List.contains creature.Id gameData.MyScanCount
         
-        member this.IsScannedAndUnsavedByMe (creature: CreatureInfo) =
+        member this.IsScannedAndUnsavedByMe (creature: FishInfo) =
             gameData.DroneScans
             |> List.filter (fun scan -> List.contains scan.DroneId (gameData.MyDrones |> List.map (fun drone -> drone.Id)))
             |> List.exists (fun scan -> scan.CreatureId = creature.Id)
         
-        member this.IsScannedByMe (creature: CreatureInfo) =
+        member this.IsScannedByMe (creature: FishInfo) =
             this.IsSavedByMe creature || this.IsScannedAndUnsavedByMe creature
         
-        member this.UnknownFishes (targets: CreatureInfo list): CreatureInfo list =
+        member this.UnknownFishes (targets: FishInfo list): FishInfo list =
             targets
             |> List.filter (fun creature -> this.IsScannedByMe creature |> not) 
-        
-        member this.UnSavedFishes (drone: Drone) =
-                game.Creatures
-                |> List.filter (fun creature -> List.contains creature.Id (gameData.DroneScans |> List.map (fun scan -> scan.CreatureId)))
-                |> List.filter (fun creature -> not (List.contains creature.Id gameData.MyScanCount)) 
-        
-        member this.hasUnscannedFish drone =
-                gameData.DroneScans
-                |> List.filter (fun scan -> scan.DroneId = drone.Id)
-                |> List.filter (fun scan -> not (List.contains scan.CreatureId gameData.FoeScanCount))
-                |> fun scans -> scans.Length > 0
-        
+
         member private this.tangentBottom (drone: Drone): bool =
             drone.Coordinate.Y >= height - droneSpeed
         
@@ -300,7 +284,7 @@ module Strategies =
         let shouldStrongLight (drone: Drone): bool =
             drone.Battery > 5
         
-        let search (gameLogic: GameLogic.GameLogic) (drone: Drone) (targets: CreatureInfo list) : IAction option =
+        let search (gameLogic: GameLogic.GameLogic) (drone: Drone) (targets: FishInfo list) : IAction option =
             let unknownFishes = targets |> gameLogic.UnknownFishes
             let radars = if unknownFishes.IsEmpty then [] else gameLogic.FindRadars unknownFishes
             
