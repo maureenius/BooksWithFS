@@ -273,11 +273,19 @@ module GameLogic =
             | "BL" -> this.goToBL drone
             | _    -> stderr.WriteLine "レーダー情報の読み込みに失敗"; drone.Coordinate
 
+        member this.IsMonsterNearBy (drone: Drone): bool =
+            gameData.VisibleCreatures
+            |> List.filter (fun creature -> List.contains creature.Id (game.Monsters |> List.map (fun monster -> monster.Id)))
+            |> List.isEmpty
+            |> not
+
 module Strategies =
     type IStrategy =
         abstract member NextActions: GameData.Game -> GameData.GameData -> Actions.Commands
     
     type DepthSplitSearch() =
+        let mutable isAvoiding = false
+        
         let broach (drone: Drone) : IAction =
             Move({ X = drone.Coordinate.X; Y = 500 }, 0)
             
@@ -309,6 +317,16 @@ module Strategies =
             gameLogic.DeepFishes
             |> search gameLogic drone
 
+        let avoidMonster (gameLogic: GameLogic.GameLogic) (drone: Drone) : IAction option =
+            if gameLogic.IsMonsterNearBy drone then
+                isAvoiding <- true
+            if drone.Coordinate.Y <= 500 then
+                isAvoiding <- false
+
+            if isAvoiding then
+                Some (Move({ X = drone.Coordinate.X; Y = 500 }, 0))
+            else
+                None
         
         interface IStrategy with
             member this.NextActions game gameData =
@@ -316,8 +334,10 @@ module Strategies =
                 let sortedDrones = gameData.MyDrones |> List.sortBy (fun drone -> drone.Id)
                 let drone1 = sortedDrones.Item(0)
                 let drone2 = sortedDrones.Item(1)
-                
-                let mutable drone1Action = searchShallow gameLogic drone1
+
+                let mutable drone1Action = avoidMonster gameLogic drone1
+                if drone1Action.IsNone then
+                    drone1Action <- searchShallow gameLogic drone1
                 if drone1Action.IsNone then
                     drone1Action <- searchMiddle gameLogic drone1
                 if drone1Action.IsNone then
@@ -325,7 +345,9 @@ module Strategies =
                 if drone1Action.IsNone then
                     drone1Action <- broach drone1 |> Some
                 
-                let mutable drone2Action = searchDeep gameLogic drone2
+                let mutable drone2Action = avoidMonster gameLogic drone2
+                if drone2Action.IsNone then
+                    drone2Action <- searchDeep gameLogic drone2
                 if drone2Action.IsNone then
                     drone2Action <- searchMiddle gameLogic drone2
                 if drone2Action.IsNone then
