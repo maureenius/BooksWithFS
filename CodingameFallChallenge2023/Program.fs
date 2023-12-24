@@ -237,12 +237,56 @@ module GameLogic =
                 |> List.filter (fun scan -> not (List.contains scan.CreatureId gameData.FoeScanCount))
                 |> fun scans -> scans.Length > 0
         
+        member private this.tangentBottom (drone: Drone): bool =
+            drone.Coordinate.Y >= height - droneSpeed
+        
+        member private this.tangentTop (drone: Drone): bool =
+            drone.Coordinate.Y <= droneSpeed
+        
+        member private this.tangentLeft (drone: Drone): bool =
+            drone.Coordinate.X <= droneSpeed
+        
+        member private this.tangentRight (drone: Drone): bool =
+            drone.Coordinate.X >= width - droneSpeed
+        
+        member private this.goToTL (drone: Drone) =
+            if this.tangentTop drone then
+                { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y }
+            elif this.tangentLeft drone then
+                { X = drone.Coordinate.X; Y = drone.Coordinate.Y - droneSpeed }
+            else
+                { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y - droneSpeed }
+                
+        member private this.goToTR (drone: Drone) =
+            if this.tangentTop drone then
+                { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y }
+            elif this.tangentRight drone then
+                { X = drone.Coordinate.X; Y = drone.Coordinate.Y - droneSpeed }
+            else
+                { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y - droneSpeed }
+        
+        member private this.goToBR (drone: Drone) =
+            if this.tangentBottom drone then
+                { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y }
+            elif this.tangentRight drone then
+                { X = drone.Coordinate.X; Y = drone.Coordinate.Y + droneSpeed }
+            else
+                { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y + droneSpeed }
+        
+        member private this.goToBL (drone: Drone) =
+            if this.tangentBottom drone then
+                { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y }
+            elif this.tangentLeft drone then
+                { X = drone.Coordinate.X; Y = drone.Coordinate.Y + droneSpeed }
+            else
+                { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y + droneSpeed }
+        
         member this.FollowRadar (radar: RadarBlip) (drone: Drone): Coordinate =
             match radar.Radar with
-            | "TL" -> { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y - droneSpeed }
-            | "TR" -> { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y - droneSpeed }
-            | "BR" -> { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y + droneSpeed }
-            | "BL" -> { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y + droneSpeed }
+            | "TL" -> this.goToTL drone
+            | "TR" -> this.goToTR drone
+            | "BR" -> this.goToBR drone
+            | "BL" -> this.goToBL drone
             | _    -> stderr.WriteLine "レーダー情報の読み込みに失敗"; drone.Coordinate
 
 module Strategies =
