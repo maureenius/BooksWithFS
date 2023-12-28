@@ -35,6 +35,10 @@ module VectorOperation =
         { X = vector1.X - vector2.X; Y = vector1.Y - vector2.Y }
     let multiply (vector: Vector) (scalar: float): Vector =
         { X = vector.X * scalar; Y = vector.Y * scalar }
+    let dot (vector1: Vector) (vector2: Vector): float =
+        vector1.X*vector2.X + vector1.Y*vector2.Y
+    let norm (vector: Vector): float =
+        sqrt(vector.X*vector.X + vector.Y*vector.Y)
     
     let merge (vectors: Vector list): Vector =
         vectors |> List.fold add { X = 0.0; Y = 0.0 }
@@ -43,6 +47,36 @@ module VectorOperation =
         { X = vector.X/norm; Y = vector.Y/norm }
 
 open VectorOperation
+
+module CollisionDetection =
+    let droneRadius = 200.0 // 仮定するドローンの半径
+    let monsterRadius = 300.0 // 仮定するモンスターの半径
+    let collisionThreshold = droneRadius + monsterRadius
+
+    // 二つの線分間の最短距離を計算
+    let private lineSegmentDistance (p1: Vector) (p2: Vector) (q1: Vector) (q2: Vector): float =
+        // ヘルパー関数: 点と線分間の最短距離
+        let pointToLineSegmentDistance p q1 q2 =
+            let qp = VectorOperation.subtract p q1
+            let qq = VectorOperation.subtract q2 q1
+            let t = max 0.0 (min 1.0 (VectorOperation.dot qp qq / VectorOperation.dot qq qq))
+            VectorOperation.subtract qp (VectorOperation.multiply qq t) |> VectorOperation.norm
+
+        min (pointToLineSegmentDistance p1 q1 q2)
+            (min (pointToLineSegmentDistance p2 q1 q2)
+                (min (pointToLineSegmentDistance q1 p1 p2)
+                    (pointToLineSegmentDistance q2 p1 p2)))
+
+    let willCollide (dronePosition: Vector) (monsterPosition: Vector) (droneMoveVector: Vector) (monsterMoveVector: Vector): bool =
+        // 次のターンでの予想位置
+        let droneNextPos = VectorOperation.add dronePosition droneMoveVector
+        let monsterNextPos = VectorOperation.add monsterPosition monsterMoveVector
+
+        // 軌跡間の最短距離
+        let distance = lineSegmentDistance dronePosition droneNextPos monsterPosition monsterNextPos
+
+        // 衝突判定
+        distance <= collisionThreshold
 
 module GameData =
     type FishInfo =
