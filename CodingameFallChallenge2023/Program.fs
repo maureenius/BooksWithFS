@@ -26,6 +26,8 @@ module VectorOperation =
         { X: float; Y: float }
         member this.ToCoordinate: Coordinate =
             { X = int(this.X); Y = int(this.Y) }
+        member this.Norm: float =
+            sqrt(this.X*this.X + this.Y*this.Y)
         
     let add (vector1: Vector) (vector2: Vector): Vector =
         { X = vector1.X + vector2.X; Y = vector1.Y + vector2.Y }
@@ -219,6 +221,8 @@ module GameLogic =
         member this.DroneSpeed = droneSpeed
         member this.Height = height
         member this.Width = width
+       
+        member this.CurrentTurn = gameData.CurrentTurn
         
         override this.ToString() =
             $"{game}\n{gameData}"
@@ -243,6 +247,9 @@ module GameLogic =
             |> List.filter (fun blip -> blip.DroneId = drone.Id)
             |> List.filter (fun blip -> List.contains blip.CreatureId (targets |> List.map (fun fish -> fish.Id)))
 
+        member this.FindMonster (creatureId: int): Monster option =
+            gameData.VisibleCreatures |> List.tryFind (fun creature -> creature.Id = creatureId)
+        
         member this.IsSavedByMe (creature: FishInfo) =
             List.contains creature.Id gameData.MyScanCount
         
@@ -265,6 +272,9 @@ module GameLogic =
             gameData.DroneScans
             |> List.filter (fun scan -> scan.DroneId = drone.Id)
             |> List.exists (fun scan -> this.IsScannedAndUnsavedByMe scan.CreatureId)
+        
+        member this.AllMonsterIds: int list =
+            game.Monsters |> List.map (fun monster -> monster.Id)
         
         member this.VisibleMonsters: Monster list =
             gameData.VisibleCreatures
@@ -451,6 +461,7 @@ module Strategies =
             let mutable drone = _drone
             let mutable state = DiveToShallow
             let isLeft = drone.Coordinate.X < 5000
+
             member this.State = state
             member this.SetState (newState: DroneState) = state <- newState
             member this.Coordinate = drone.Coordinate
@@ -462,6 +473,7 @@ module Strategies =
             let mutable isInitialized = false
             let mutable droneBrain1: DroneBrain option = None
             let mutable droneBrain2: DroneBrain option = None
+            let mutable monsterMemories: (Monster * int) list = []
             
             let moveVector (drone: Drone) (destinationVector: Vector) (monsterVectors: Vector list): Vector =
                 destinationVector :: monsterVectors
@@ -489,10 +501,15 @@ module Strategies =
             let BroachDestination (drone: DroneBrain): Coordinate =
                 { X = drone.Coordinate.X; Y = 500 }
             
+            let threatMonsters (drone: DroneBrain): Monster list =
+                monsterMemories
+                |> List.filter (fun (monster, _) -> Distance drone.Coordinate monster.Coordinate < 2000)
+                |> List.map fst
+            
             let move (drone: DroneBrain) (destination: Coordinate) (gameLogic: GameLogic.GameLogic): IAction * bool =
                 stderr.WriteLine $"droneId: {drone.Drone.Id}"
                 let destinationVector = DroneLogic.destinationVector drone.Drone destination |> tap (fun vector -> stderr.WriteLine $"destinationVector: {vector}")
-                let monsterVectors = gameLogic.VisibleMonsters |> monsterVectors drone.Drone |> tap (fun vectors -> stderr.WriteLine $"monsterVectors: {vectors}")
+                let monsterVectors = threatMonsters drone |> monsterVectors drone.Drone |> tap (fun vectors -> stderr.WriteLine $"monsterVectors: {vectors}")
                 let resultVector = moveVector drone.Drone destinationVector monsterVectors |> tap (fun vector -> stderr.WriteLine $"resultVector: {vector}")
                 let reach = isReachDestination drone.Drone destination |> tap (fun isReach -> stderr.WriteLine $"isReach: {isReach}")
 
@@ -510,6 +527,22 @@ module Strategies =
             let broach (drone: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction * bool =
                 move drone (BroachDestination drone) gameLogic
             
+            let update (gameLogic: GameLogic.GameLogic): unit =
+                // 現在のターンで観測されたモンスターの記録を更新
+                gameLogic.VisibleMonsters
+                |> List.iter (fun monster ->
+                    // 同じ ID の古い記録を削除
+                    monsterMemories <- monsterMemories |> List.filter (fun (m, _) -> m.Id <> monster.Id)
+                    // 新しい記録を追加
+                    monsterMemories <- (monster, gameLogic.CurrentTurn) :: monsterMemories
+                )
+
+                // 古い記録を削除
+                let thresholdTurn = gameLogic.CurrentTurn - 10
+                monsterMemories <- monsterMemories |> List.filter (fun (_, turn) -> turn > thresholdTurn)
+                
+                stderr.WriteLine $"monsterMemories: {monsterMemories}"
+            
             member private this.SelectAction (droneBrain: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction =
                 match droneBrain.State with
                 | DiveToShallow -> diveToShallow droneBrain gameLogic |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToMiddle; action else action
@@ -520,7 +553,8 @@ module Strategies =
             
             interface IStrategy with
                 member this.NextActions game gameData =
-                    let gameLogic = GameLogic.GameLogic(game, gameData)
+                    let gameLogic = GameLogic.GameLogic(game, gameData) |> tap update
+
                     let drones = gameData.MyDrones |> List.sortBy (fun drone -> drone.Id)
                     if not isInitialized then
                         droneBrain1 <- drones.Item(0) |> DroneBrain |> Some
