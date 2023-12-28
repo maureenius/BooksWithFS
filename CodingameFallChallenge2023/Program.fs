@@ -4,6 +4,44 @@ open Microsoft.FSharp.Core
 
 let tap f x = f x; x
 
+module CoordinateSystem =
+    type Coordinate =
+        {
+            X: int
+            Y: int
+        }
+    
+    let SquaredDistance (coordinate1: Coordinate) (coordinate2: Coordinate): int =
+        let dx = coordinate1.X - coordinate2.X
+        let dy = coordinate1.Y - coordinate2.Y
+        dx*dx + dy*dy
+    
+    let Distance (coordinate1: Coordinate) (coordinate2: Coordinate): float =
+        SquaredDistance coordinate1 coordinate2 |> float |> sqrt
+
+open CoordinateSystem
+
+module VectorOperation =
+    type Vector =
+        { X: float; Y: float }
+        member this.ToCoordinate: Coordinate =
+            { X = int(this.X); Y = int(this.Y) }
+        
+    let add (vector1: Vector) (vector2: Vector): Vector =
+        { X = vector1.X + vector2.X; Y = vector1.Y + vector2.Y }
+    let subtract (vector1: Vector) (vector2: Vector): Vector =
+        { X = vector1.X - vector2.X; Y = vector1.Y - vector2.Y }
+    let multiply (vector: Vector) (scalar: float): Vector =
+        { X = vector.X * scalar; Y = vector.Y * scalar }
+    
+    let merge (vectors: Vector list): Vector =
+        vectors |> List.fold add { X = 0.0; Y = 0.0 }
+    let normalize (vector: Vector): Vector =
+        let norm = sqrt(vector.X*vector.X + vector.Y*vector.Y)
+        { X = vector.X/norm; Y = vector.Y/norm }
+
+open VectorOperation
+
 module GameData =
     type FishInfo =
         {
@@ -26,16 +64,6 @@ module GameData =
         Fishes: FishInfo list
         Monsters: MonsterInfo list
     }
-
-    type Coordinate =
-        {
-            X: int
-            Y: int
-        }
-        member this.DistanceTo(other: Coordinate) =
-            let dx = this.X - other.X
-            let dy = this.Y - other.Y
-            dx * dx + dy * dy
 
     type Creature = {
         Id: int
@@ -94,7 +122,7 @@ module Actions =
         interface IAction with
             member this.Output() = $"WAIT {light} Drifting..."
 
-    type Move(coordinate: GameData.Coordinate, light: int) =
+    type Move(coordinate: Coordinate, light: int) =
         interface IAction with
             member this.Output() = $"MOVE {coordinate.X} {coordinate.Y} {light} MOVING!"
 
@@ -245,7 +273,7 @@ module GameLogic =
         
         member this.NearestMonster (drone: Drone): Monster option =
             this.VisibleMonsters
-            |> List.sortBy (fun monster -> monster.Coordinate.DistanceTo drone.Coordinate)
+            |> List.sortBy (fun monster -> SquaredDistance monster.Coordinate drone.Coordinate)
             |> List.tryHead
         
         member private this.tangentBottom (drone: Drone): bool =
@@ -262,47 +290,47 @@ module GameLogic =
         
         member private this.goToTL (drone: Drone) =
             if this.tangentTop drone then
-                { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y }
+                { X = -1.0; Y = 0 }
             elif this.tangentLeft drone then
-                { X = drone.Coordinate.X; Y = drone.Coordinate.Y - droneSpeed }
+                { X = 0; Y = -1.0 }
             else
-                { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y - droneSpeed }
+                { X = -0.5; Y = -0.5 }
                 
         member private this.goToTR (drone: Drone) =
             if this.tangentTop drone then
-                { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y }
+                { X = 1.0; Y = 0 }
             elif this.tangentRight drone then
-                { X = drone.Coordinate.X; Y = drone.Coordinate.Y - droneSpeed }
+                { X = 0; Y = -1.0 }
             else
-                { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y - droneSpeed }
-        
+                { X = 0.5; Y = -0.5 }
+                
         member private this.goToBR (drone: Drone) =
             if this.tangentBottom drone then
-                { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y }
+                { X = 1.0; Y = 0 }
             elif this.tangentRight drone then
-                { X = drone.Coordinate.X; Y = drone.Coordinate.Y + droneSpeed }
+                { X = 0; Y = 1.0 }
             else
-                { X = drone.Coordinate.X + droneSpeed; Y = drone.Coordinate.Y + droneSpeed }
-        
+                { X = 0.5; Y = 0.5 }
+                
         member private this.goToBL (drone: Drone) =
             if this.tangentBottom drone then
-                { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y }
+                { X = -1.0; Y = 0 }
             elif this.tangentLeft drone then
-                { X = drone.Coordinate.X; Y = drone.Coordinate.Y + droneSpeed }
+                { X = 0; Y = 1.0 }
             else
-                { X = drone.Coordinate.X - droneSpeed; Y = drone.Coordinate.Y + droneSpeed }
+                { X = -0.5; Y = 0.5 }
         
-        member this.FollowRadar (radar: RadarBlip) (drone: Drone): Coordinate =
+        member this.FollowRadar (radar: RadarBlip) (drone: Drone): Vector =
             match radar.Radar with
             | "TL" -> this.goToTL drone
             | "TR" -> this.goToTR drone
             | "BR" -> this.goToBR drone
             | "BL" -> this.goToBL drone
-            | _    -> stderr.WriteLine "レーダー情報の読み込みに失敗"; drone.Coordinate
+            | _    -> stderr.WriteLine "レーダー情報の読み込みに失敗"; { X = float drone.Coordinate.X; Y = float drone.Coordinate.Y }
 
         member this.IsMonsterNearBy (drone: Drone): bool =
             this.NearestMonster drone
-            |> Option.exists (fun monster -> monster.Coordinate.DistanceTo drone.Coordinate
+            |> Option.exists (fun monster -> SquaredDistance monster.Coordinate drone.Coordinate
                                               |> tap (fun distance -> stderr.WriteLine $"monster distance: {distance}")
                                               |> fun distance -> distance <= 1200*1200)
 
@@ -384,147 +412,33 @@ module GameLogic =
             
             score
 
-        /// モンスターの次のターンでの予測位置を計算
-        member this.PredictMonsterPosition (monster: Monster): Coordinate =
-            {
-                X = monster.Coordinate.X + monster.Vx;
-                Y = monster.Coordinate.Y + monster.Vy;
-            }
+module DroneLogic =
+    let speed = 600
+    let destinationVector (drone: Drone) (destination: Coordinate): Vector =
+        let dx = float(destination.X - drone.Coordinate.X)
+        let dy = float(destination.Y - drone.Coordinate.Y)
+        { X = dx; Y = dy } |> normalize
 
-        /// ドローンが安全に逃げるための座標を計算
-        member this.CalculateSafeEscapeCoordinate (drone: Drone, monster: Monster): Coordinate =
-            let predictedMonsterPosition = this.PredictMonsterPosition(monster)
-            let deltaX = drone.Coordinate.X - predictedMonsterPosition.X
-            let deltaY = drone.Coordinate.Y - predictedMonsterPosition.Y
-            let escapeDistance = this.DroneSpeed
-            let norm = Math.Sqrt(float(deltaX * deltaX + deltaY * deltaY))
+    let moveCoordinate (drone: Drone) (vector: Vector): Coordinate =
+        { X = int(float drone.Coordinate.X + vector.X); Y = int(float drone.Coordinate.Y + vector.Y) }
 
-            // 予測位置から逃避方向を計算
-            let escapeX = int(float drone.Coordinate.X + float escapeDistance * (float deltaX / norm))
-            let escapeY = int(float drone.Coordinate.Y + float escapeDistance * (float deltaY / norm))
-
-            // 逃避座標をマップの範囲内に制限
-            {
-                X = Math.Max(0, Math.Min(this.Width, escapeX));
-                Y = Math.Max(0, Math.Min(this.Height, escapeY));
-            }
+module MonsterLogic =
+    let monsterYLimit = 2500
+    
+    let predictNextPosition (monster: Monster): Coordinate =
+        {
+            X = max 0 (min 10000 (monster.Coordinate.X + monster.Vx));
+            Y = max monsterYLimit monster.Coordinate.Y + monster.Vy
+        }
+    
+    let monsterAvoidanceVector (drone: Drone) (monster: Monster): Vector =
+        let dx = float(drone.Coordinate.X - monster.Coordinate.X)
+        let dy = float(drone.Coordinate.Y - monster.Coordinate.Y)
+        { X = dx; Y = dy } |> normalize
 
 module Strategies =
     type IStrategy =
-        abstract member NextActions: GameData.Game -> GameData.GameData -> Actions.Commands    
-    type DepthSplitSearch() =
-        let savingState = Dictionary<int, bool>()
-        let avoidState = Dictionary<int, bool>()
-        
-        let setSavingState (droneId: int) (state: bool) =
-            savingState.[droneId] <- state
-        let getSavingState (droneId: int) =
-            if savingState.ContainsKey droneId then
-                savingState.[droneId]
-            else
-                false
-        
-        let setAvoidState (droneId: int) (state: bool) =
-            avoidState.[droneId] <- state
-        let getAvoidState (droneId: int) =
-            if avoidState.ContainsKey droneId then
-                avoidState.[droneId]
-            else
-                false
-        
-        let broach (drone: Drone) : IAction =
-            Move({ X = drone.Coordinate.X; Y = 500 }, 0)
-            
-        let shouldStrongLight (drone: Drone): bool =
-            drone.Battery > 5
-        
-        let search (gameLogic: GameLogic.GameLogic) (drone: Drone) (targets: FishInfo list) : IAction option =
-            let unknownFishes = targets |> gameLogic.UnknownFishes
-            let radars = if unknownFishes.IsEmpty then [] else gameLogic.FindRadars unknownFishes drone
-            
-            if unknownFishes.IsEmpty then
-                setSavingState drone.Id true
-            
-            if gameLogic.HoldingScore drone > 20 then
-                setSavingState drone.Id true
-            
-            if radars.IsEmpty then
-                None
-            else
-                radars
-                |> List.minBy (fun radar -> radar.CreatureId)
-                |> tap (fun radar -> stderr.WriteLine $"follow: {radar.CreatureId}")
-                |> fun radar -> gameLogic.FollowRadar radar drone
-                |> fun coordinate -> Some (Move(coordinate, (if shouldStrongLight drone then 1 else 0)))
-        
-        let searchShallow (gameLogic: GameLogic.GameLogic) (drone: Drone) : IAction option =
-            gameLogic.ShallowFishes
-            |> search gameLogic drone
-        
-        let save (gameLogic: GameLogic.GameLogic) (drone: Drone) : IAction option =
-            if getSavingState drone.Id then
-                match gameLogic.hasUnSavedFish drone with
-                | true -> Some (Move({ X = drone.Coordinate.X; Y = 500 }, 0))
-                | false -> setSavingState drone.Id false; None
-            else
-                None
-  
-        let searchMiddle (gameLogic: GameLogic.GameLogic) (drone: Drone) : IAction option =
-            gameLogic.MiddleFishes
-            |> search gameLogic drone
-        
-        let searchDeep (gameLogic: GameLogic.GameLogic) (drone: Drone) : IAction option =
-            gameLogic.DeepFishes
-            |> search gameLogic drone
-
-        let avoidMonster (gameLogic: GameLogic.GameLogic) (drone: Drone) : IAction option =
-            if gameLogic.IsMonsterNearBy drone then
-                setAvoidState drone.Id true
-            else
-                setAvoidState drone.Id false
-            
-            if getAvoidState drone.Id then
-                let monster = gameLogic.VisibleMonsters |> List.sortBy (fun monster -> monster.Coordinate.DistanceTo drone.Coordinate) |> List.head
-                let avoidCoordinate = { X = drone.Coordinate.X + monster.Vx; Y = 500 }
-                Some (Move(avoidCoordinate, 0))
-            else
-                None
-        
-        interface IStrategy with
-            member this.NextActions game gameData =
-                let gameLogic = GameLogic.GameLogic(game, gameData)
-                let sortedDrones = gameData.MyDrones |> List.sortBy (fun drone -> drone.Id)
-                let drone1 = sortedDrones.Item(0)
-                let drone2 = sortedDrones.Item(1)
-
-                let mutable drone1Action = avoidMonster gameLogic drone1
-                if drone1Action.IsNone then
-                    drone1Action <- save gameLogic drone1
-                if drone1Action.IsNone then
-                    drone1Action <- searchShallow gameLogic drone1
-                if drone1Action.IsNone then
-                    drone1Action <- searchMiddle gameLogic drone1
-                if drone1Action.IsNone then
-                    drone1Action <- searchDeep gameLogic drone1
-                if drone1Action.IsNone then
-                    drone1Action <- broach drone1 |> Some
-                
-                let mutable drone2Action = avoidMonster gameLogic drone2
-                if drone2Action.IsNone then
-                    drone2Action <- save gameLogic drone2
-                if drone2Action.IsNone then
-                    drone2Action <- searchDeep gameLogic drone2
-                if drone2Action.IsNone then
-                    drone2Action <- searchMiddle gameLogic drone2
-                if drone2Action.IsNone then
-                    drone2Action <- searchShallow gameLogic drone2
-                if drone2Action.IsNone then
-                    drone2Action <- broach drone2 |> Some
-                
-                {
-                    Drone1Action = drone1Action.Value
-                    Drone2Action = drone2Action.Value
-                }
+        abstract member NextActions: GameData.Game -> GameData.GameData -> Actions.Commands
 
     module Peake =
         type DroneState =
@@ -549,47 +463,60 @@ module Strategies =
             let mutable droneBrain1: DroneBrain option = None
             let mutable droneBrain2: DroneBrain option = None
             
-            let diveToShallow (drone: DroneBrain) : IAction * bool =
-                let goal = if drone.IsLeft then { X = 2000; Y = 3000 } else { X = 8000; Y = 3000 }
-                let isGoal = drone.Coordinate.DistanceTo goal < 500*500
-                stderr.WriteLine $"distance: {drone.Coordinate.DistanceTo goal}"
-                let light = if isGoal then 1 else 0
-                Move(goal, light), isGoal
+            let moveVector (drone: Drone) (destinationVector: Vector) (monsterVectors: Vector list): Vector =
+                destinationVector :: monsterVectors
+                |> VectorOperation.merge
+                |> VectorOperation.normalize
+                |> fun vector -> VectorOperation.multiply vector (float DroneLogic.speed)
             
-            let diveToMiddle (drone: DroneBrain) : IAction * bool =
-                let goal = if drone.IsLeft then { X = 2000; Y = 6000 } else { X = 8000; Y = 6000 }
-                let isGoal = drone.Coordinate.DistanceTo goal < 500*500
-                let light = if isGoal then 1 else 0
-                Move(goal, light), isGoal
+            let monsterVectors (drone: Drone) (monsters: Monster list): Vector list =
+                monsters
+                |> List.filter (fun monster -> Distance drone.Coordinate monster.Coordinate < 1000)
+                |> List.map (MonsterLogic.monsterAvoidanceVector drone)
             
-            let diveToDeep (drone: DroneBrain) : IAction * bool =
-                let goal = if drone.IsLeft then { X = 2000; Y = 7800 } else { X = 8000; Y = 7800 }
-                let isGoal = drone.Coordinate.DistanceTo goal < 500*500
-                let light = if isGoal then 1 else 0
-                Move(goal, light), isGoal
+            let isReachDestination (drone: Drone) (destination: Coordinate): bool =
+                Distance drone.Coordinate destination < 500
             
-            let broach (drone: DroneBrain) : IAction * bool =
-                let isGoal = drone.Coordinate.Y <= 500
-                Move({ X = drone.Coordinate.X; Y = 500 }, 0), isGoal
+            let shallowDestination (drone: DroneBrain): Coordinate =
+                if drone.IsLeft then { X = 2000; Y = 3000 } else { X = 8000; Y = 3000 }
             
-            let avoidMonster (gameLogic: GameLogic.GameLogic) (drone: Drone) : IAction option =
-                if gameLogic.IsMonsterNearBy drone then
-                    let monster = gameLogic.VisibleMonsters |> List.minBy (fun monster -> monster.Coordinate.DistanceTo(drone.Coordinate))
-                    let escapeCoordinate = gameLogic.CalculateSafeEscapeCoordinate(drone, monster)
-                    Some (Move(escapeCoordinate, 0))
-                else
-                    None
+            let MiddleDestination (drone: DroneBrain): Coordinate =
+                if drone.IsLeft then { X = 2000; Y = 6000 } else { X = 8000; Y = 6000 }
+            
+            let DeepDestination (drone: DroneBrain): Coordinate =
+                if drone.IsLeft then { X = 2000; Y = 7800 } else { X = 8000; Y = 7800 }
+            
+            let BroachDestination (drone: DroneBrain): Coordinate =
+                { X = drone.Coordinate.X; Y = 500 }
+            
+            let move (drone: DroneBrain) (destination: Coordinate) (gameLogic: GameLogic.GameLogic): IAction * bool =
+                stderr.WriteLine $"droneId: {drone.Drone.Id}"
+                let destinationVector = DroneLogic.destinationVector drone.Drone destination |> tap (fun vector -> stderr.WriteLine $"destinationVector: {vector}")
+                let monsterVectors = gameLogic.VisibleMonsters |> monsterVectors drone.Drone |> tap (fun vectors -> stderr.WriteLine $"monsterVectors: {vectors}")
+                let resultVector = moveVector drone.Drone destinationVector monsterVectors |> tap (fun vector -> stderr.WriteLine $"resultVector: {vector}")
+                let reach = isReachDestination drone.Drone destination |> tap (fun isReach -> stderr.WriteLine $"isReach: {isReach}")
+
+                Move(DroneLogic.moveCoordinate drone.Drone resultVector, if reach then 1 else 0), reach
+            
+            let diveToShallow (drone: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction * bool =
+                move drone (shallowDestination drone) gameLogic
+            
+            let diveToMiddle (drone: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction * bool =
+                move drone (MiddleDestination drone) gameLogic
+            
+            let diveToDeep (drone: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction * bool =
+                move drone (DeepDestination drone) gameLogic
+            
+            let broach (drone: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction * bool =
+                move drone (BroachDestination drone) gameLogic
             
             member private this.SelectAction (droneBrain: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction =
-                avoidMonster gameLogic droneBrain.Drone
-                |> (fun action -> match action with
-                                  | None -> match droneBrain.State with
-                                            | DiveToShallow -> diveToShallow droneBrain |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToMiddle; action else action
-                                            | DiveToMiddle -> diveToMiddle droneBrain |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToDeep; action else action
-                                            | DiveToDeep -> diveToDeep droneBrain |> fun (action, isGoal) -> if isGoal then droneBrain.SetState Broach; action else action
-                                            | Broach -> broach droneBrain |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToShallow; action else action
-                                            |> tap (fun _ -> stderr.WriteLine $"state: {droneBrain.State}")
-                                  | Some value -> value)
+                match droneBrain.State with
+                | DiveToShallow -> diveToShallow droneBrain gameLogic |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToMiddle; action else action
+                | DiveToMiddle -> diveToMiddle droneBrain gameLogic |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToDeep; action else action
+                | DiveToDeep -> diveToDeep droneBrain gameLogic |> fun (action, isGoal) -> if isGoal then droneBrain.SetState Broach; action else action
+                | Broach -> broach droneBrain gameLogic |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToShallow; action else action
+                |> tap (fun _ -> stderr.WriteLine $"state: {droneBrain.State}")
             
             interface IStrategy with
                 member this.NextActions game gameData =
