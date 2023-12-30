@@ -1,15 +1,14 @@
 ﻿open System
 open System.Collections.Generic
-open Microsoft.FSharp.Core
 
-let tap f x = f x; x
+module MyCommon =
+    let tap f x = f x; x
+
+open MyCommon
 
 module CoordinateSystem =
-    type Coordinate =
-        {
-            X: int
-            Y: int
-        }
+    type Coordinate = { X: int; Y: int }
+    type Circle = { Center: Coordinate; Radius: int }
     
     let SquaredDistance (coordinate1: Coordinate) (coordinate2: Coordinate): int =
         let dx = coordinate1.X - coordinate2.X
@@ -48,35 +47,77 @@ module VectorOperation =
 
 open VectorOperation
 
-module CollisionDetection =
-    let droneRadius = 200.0 // 仮定するドローンの半径
-    let monsterRadius = 300.0 // 仮定するモンスターの半径
-    let collisionThreshold = droneRadius + monsterRadius
+module MapLogic =
+    type Cell = { CanMove: bool }
+    type Map = { Grids: Dictionary<int * int, Cell> }
+    
+    let inSafe (map: Map) (coordinate: Coordinate): bool =
+        map.Grids.TryGetValue ((coordinate.X, coordinate.Y))
+        |> fun (fst, snd) -> if fst then snd.CanMove else false
 
-    // 二つの線分間の最短距離を計算
-    let private lineSegmentDistance (p1: Vector) (p2: Vector) (q1: Vector) (q2: Vector): float =
-        // ヘルパー関数: 点と線分間の最短距離
-        let pointToLineSegmentDistance p q1 q2 =
-            let qp = VectorOperation.subtract p q1
-            let qq = VectorOperation.subtract q2 q1
-            let t = max 0.0 (min 1.0 (VectorOperation.dot qp qq / VectorOperation.dot qq qq))
-            VectorOperation.subtract qp (VectorOperation.multiply qq t) |> VectorOperation.norm
+    let initializeByCircle (circle: Circle): Map =
+        let isInsideCircle (coordinate: Coordinate): bool =
+            SquaredDistance circle.Center coordinate <= circle.Radius * circle.Radius
+        
+        let minX = max 0 (circle.Center.X - circle.Radius)
+        let maxX = min 10000 (circle.Center.X + circle.Radius)
+        let minY = max 0 (circle.Center.Y - circle.Radius)
+        let maxY = min 10000 (circle.Center.Y + circle.Radius)
+        
+        let width = maxX - minX + 1
+        let height = maxY - minY + 1
+        
+        let grids = Dictionary<int * int, Cell>()
+        for x in minX .. maxX do
+            for y in minY .. maxY do
+                grids.Add ((x, y), { CanMove = isInsideCircle { X = x; Y = y } })
+        
+        { Grids = grids }
 
-        min (pointToLineSegmentDistance p1 q1 q2)
-            (min (pointToLineSegmentDistance p2 q1 q2)
-                (min (pointToLineSegmentDistance q1 p1 p2)
-                    (pointToLineSegmentDistance q2 p1 p2)))
+    // 計算量節約のため、引数のmapを破壊的に変更する
+    let markUnmovableCircle (map: Map) (circle: Circle): Map =
+        for x in -circle.Radius .. circle.Radius do
+            for y in -circle.Radius .. circle.Radius do
+                if SquaredDistance circle.Center { X = circle.Center.X + x; Y = circle.Center.Y + y } <= circle.Radius * circle.Radius then
+                    map.Grids.Add((circle.Center.X + x, circle.Center.Y + y), { CanMove = false })
+        map
+        
+    let canMoveDirectly (start: Coordinate) (destination: Coordinate) (map: Map): bool =
+        // 線分上の各セルが侵入可能か判定
+        let isCellPassable (x: int) (y: int): bool =
+            if x < 0 || x >= 10000 || y < 0 || y >= 10000 then
+                false
+            else
+                map.Grids.[x, y].CanMove
+        
+        // Bresenhamの線アルゴリズムを使用して、線分上のセルを判定
+        let dx = abs (destination.X - start.X)
+        let dy = -abs (destination.Y - start.Y)
+        let sx = if start.X < destination.X then 1 else -1
+        let sy = if start.Y < destination.Y then 1 else -1
+        let mutable err = dx + dy
+        let mutable x = start.X
+        let mutable y = start.Y
 
-    let willCollide (dronePosition: Vector) (monsterPosition: Vector) (droneMoveVector: Vector) (monsterMoveVector: Vector): bool =
-        // 次のターンでの予想位置
-        let droneNextPos = VectorOperation.add dronePosition droneMoveVector
-        let monsterNextPos = VectorOperation.add monsterPosition monsterMoveVector
+        let rec checkLine (): bool =
+            if x = destination.X && y = destination.Y then
+                true
+            else
+                if isCellPassable x y then
+                    let e2 = 2 * err
+                    if e2 >= dy then
+                        err <- err + dy
+                        x <- x + sx
+                    if e2 <= dx then
+                        err <- err + dx
+                        y <- y + sy
+                    checkLine ()
+                else
+                    false
 
-        // 軌跡間の最短距離
-        let distance = lineSegmentDistance dronePosition droneNextPos monsterPosition monsterNextPos
+        checkLine ()
 
-        // 衝突判定
-        distance <= collisionThreshold
+open MapLogic
 
 module GameData =
     type FishInfo =
@@ -458,6 +499,62 @@ module GameLogic =
 
 module DroneLogic =
     let speed = 600
+    
+    // radianで返す
+    let calculateRadian (coordinate1: Coordinate) (coordinate2: Coordinate): float =
+        Math.Atan2(float(coordinate2.Y - coordinate1.Y), float(coordinate2.X - coordinate1.X))
+    
+    let findPointOnCircle (circle: Circle) (θ: float): Coordinate =
+        let x = circle.Center.X + int(float circle.Radius * Math.Cos(θ))
+        let y = circle.Center.Y + int(float circle.Radius * Math.Sin(θ))
+        { X = x; Y = y }
+    
+    let findNearestSafeDestination (start: Circle) (target: Coordinate) (map: Map): Coordinate option =
+        if canMoveDirectly start.Center target map then
+            Some target
+        else
+            // startからtargetを結ぶ直線の角度を少しずつ変えて、最も近い安全な場所を探す
+            let θi = calculateRadian start.Center target
+            let radianStep = 0.05  // 設定値
+            let rec findPoint Δθ =
+                let pointPlus = findPointOnCircle start (θi + Δθ)
+                let pointMinus = findPointOnCircle start (θi - Δθ)
+                if canMoveDirectly start.Center pointPlus map then
+                    Some pointPlus
+                elif canMoveDirectly start.Center pointMinus map then
+                    Some pointMinus
+                elif Δθ <= Math.PI then
+                    findPoint (Δθ + radianStep)
+                else
+                    None
+
+            findPoint θi
+    
+    let findOrthogonalSafeDestination (start: Circle) (target: Coordinate) (map: Map): Coordinate =
+        let θ = calculateRadian start.Center target
+        let θ1 = θ + Math.PI/2.0
+        let θ2 = θ - Math.PI/2.0
+        let pointPlus = findPointOnCircle start θ1
+        let pointMinus = findPointOnCircle start θ2
+        let canMovePlus = canMoveDirectly start.Center pointPlus map
+        let canMoveMinus = canMoveDirectly start.Center pointMinus map
+        
+        match canMovePlus, canMoveMinus with
+        | true, true -> if Distance target pointPlus < Distance target pointMinus then pointPlus else pointMinus
+        | true, false -> pointPlus
+        | false, true -> pointMinus
+        | false, false -> findPointOnCircle start (θ + Math.PI) 
+    
+    let findSafeDestination (start: Circle) (target: Coordinate) (map: Map): Coordinate =
+        if MapLogic.inSafe map start.Center then
+            // 既に安全な場所にいる場合は、そのまま目的地に向かう
+            { Center = start.Center; Radius = Distance start.Center target |> int }
+            |> fun circle -> findNearestSafeDestination circle target map
+            |> Option.defaultValue target
+        else
+            // まずは安全な場所に移動
+            findOrthogonalSafeDestination start target map
+    
     let destinationVector (drone: Drone) (destination: Coordinate): Vector =
         let dx = float(destination.X - drone.Coordinate.X)
         let dy = float(destination.Y - drone.Coordinate.Y)
@@ -540,7 +637,8 @@ module Strategies =
                 |> List.filter (fun (monster, _) -> Distance drone.Coordinate monster.Coordinate < 2000)
                 |> List.map fst
             
-            let move (drone: DroneBrain) (destination: Coordinate) (gameLogic: GameLogic.GameLogic): IAction * bool =
+            // TODO: 命名
+            let moveOld (drone: DroneBrain) (destination: Coordinate) (gameLogic: GameLogic.GameLogic): IAction * bool =
                 stderr.WriteLine $"droneId: {drone.Drone.Id}"
                 let destinationVector = DroneLogic.destinationVector drone.Drone destination |> tap (fun vector -> stderr.WriteLine $"destinationVector: {vector}")
                 let monsterVectors = threatMonsters drone |> monsterVectors drone.Drone |> tap (fun vectors -> stderr.WriteLine $"monsterVectors: {vectors}")
@@ -548,6 +646,23 @@ module Strategies =
                 let reach = isReachDestination drone.Drone destination |> tap (fun isReach -> stderr.WriteLine $"isReach: {isReach}")
 
                 Move(DroneLogic.moveCoordinate drone.Drone resultVector, if reach then 1 else 0), reach
+            
+            let move (drone: DroneBrain) (destination: Coordinate) (gameLogic: GameLogic.GameLogic): IAction * bool =
+                let reach = isReachDestination drone.Drone destination || gameLogic.CurrentTurn % 5 = 4
+                
+                let markMonstersArea (map: Map) (monsters: Monster list): Map =
+                    let mutable updatedMap = map
+                    for monster in monsters do
+                        updatedMap <- MapLogic.markUnmovableCircle updatedMap { Center = monster.Coordinate; Radius = 500 }
+                        MonsterLogic.predictNextPosition monster
+                        |> fun nextPosition -> updatedMap <- MapLogic.markUnmovableCircle updatedMap { Center = nextPosition; Radius = 500 }
+                    
+                    updatedMap
+
+                MapLogic.initializeByCircle { Center = drone.Drone.Coordinate; Radius = DroneLogic.speed }
+                |> fun map -> markMonstersArea map (threatMonsters drone)
+                |> DroneLogic.findSafeDestination { Center = drone.Drone.Coordinate; Radius = DroneLogic.speed } destination
+                |> fun safeDestination -> Actions.Move(safeDestination, if reach then 1 else 0), reach
             
             let diveToShallow (drone: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction * bool =
                 move drone (shallowDestination drone) gameLogic
@@ -588,7 +703,7 @@ module Strategies =
             interface IStrategy with
                 member this.NextActions game gameData =
                     let gameLogic = GameLogic.GameLogic(game, gameData) |> tap update
-
+                    
                     let drones = gameData.MyDrones |> List.sortBy (fun drone -> drone.Id)
                     if not isInitialized then
                         droneBrain1 <- drones.Item(0) |> DroneBrain |> Some
