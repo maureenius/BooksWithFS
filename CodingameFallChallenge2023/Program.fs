@@ -206,7 +206,9 @@ module Actions =
 open Actions
 
 module IOHelper =
-    let readInt() = Console.In.ReadLine() |> int
+    let read() = Console.In.ReadLine() |> tap (fun line -> stderr.WriteLine line)
+    
+    let readInt() = read() |> int
     
     let initialize: GameData.Game = 
         let creatureCount = readInt()
@@ -230,7 +232,6 @@ module IOHelper =
         |> List.map (fun _ -> Console.In.ReadLine())
         |> List.map (fun line -> line.Split [|' '|])
         |> List.map (fun token -> { DroneId = int(token[0]); CreatureId = int(token[1]) })
-        |> tap (fun scans -> stderr.WriteLine $"scans: {scans}")
 
     let readCreatures (count: int): GameData.Creature list =
         [0 .. count - 1]
@@ -242,7 +243,6 @@ module IOHelper =
             Vx = int(token[3])
             Vy = int(token[4])
         })
-        |> tap (fun creatures -> stderr.WriteLine $"creatures: {creatures}")
 
     let readDrones (count: int): GameData.Drone list =
         [0 .. count - 1]
@@ -254,7 +254,6 @@ module IOHelper =
             Emergency = int(token[3])
             Battery = int(token[4])
         })
-        |> tap (fun drones -> stderr.WriteLine $"drones: {drones}")
 
     let readRadars (count: int): GameData.RadarBlip list = 
         [0 .. count - 1]
@@ -265,7 +264,6 @@ module IOHelper =
             CreatureId = int(token[1])
             Radar = token[2]
         })
-        |> tap (fun radars -> stderr.WriteLine $"radars: {radars}")
 
     let readGameData (maxTurn: int) (currentTurn: int): GameData.GameData = {
         MyScore = readInt()
@@ -282,8 +280,8 @@ module IOHelper =
     }
 
     let writeAction (commands: Actions.Commands) =
-        Console.Out.WriteLine(commands.Drone1Action.Output()) |> tap (fun _ -> stderr.WriteLine (commands.Drone1Action.Output()))
-        Console.Out.WriteLine(commands.Drone2Action.Output()) |> tap (fun _ -> stderr.WriteLine (commands.Drone2Action.Output()))
+        Console.Out.WriteLine(commands.Drone1Action.Output())
+        Console.Out.WriteLine(commands.Drone2Action.Output())
 
 module GameLogic =
     type GameLogic(game: GameData.Game, gameData: GameData.GameData) =
@@ -416,7 +414,6 @@ module GameLogic =
         member this.IsMonsterNearBy (drone: Drone): bool =
             this.NearestMonster drone
             |> Option.exists (fun monster -> SquaredDistance monster.Coordinate drone.Coordinate
-                                              |> tap (fun distance -> stderr.WriteLine $"monster distance: {distance}")
                                               |> fun distance -> distance <= 1200*1200)
 
         member private this.WillBingoHorizontal (fishes: FishInfo list) (color: int): bool =
@@ -679,8 +676,6 @@ module Strategies =
                 // 古い記録を削除
                 let thresholdTurn = gameLogic.CurrentTurn - 10
                 monsterMemories <- monsterMemories |> List.filter (fun (_, turn) -> turn > thresholdTurn)
-                
-                stderr.WriteLine $"monsterMemories: {monsterMemories}"
             
             member private this.SelectAction (droneBrain: DroneBrain) (gameLogic: GameLogic.GameLogic): IAction =
                 match droneBrain.State with
@@ -688,7 +683,6 @@ module Strategies =
                 | DiveToMiddle -> diveToMiddle droneBrain gameLogic |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToDeep; action else action
                 | DiveToDeep -> diveToDeep droneBrain gameLogic |> fun (action, isGoal) -> if isGoal then droneBrain.SetState Broach; action else action
                 | Broach -> broach droneBrain gameLogic |> fun (action, isGoal) -> if isGoal then droneBrain.SetState DiveToShallow; action else action
-                |> tap (fun _ -> stderr.WriteLine $"state: {droneBrain.State}")
             
             interface IStrategy with
                 member this.NextActions game gameData =
