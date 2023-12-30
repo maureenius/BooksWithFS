@@ -637,16 +637,6 @@ module Strategies =
                 |> List.filter (fun (monster, _) -> Distance drone.Coordinate monster.Coordinate < 2000)
                 |> List.map fst
             
-            // TODO: 命名
-            let moveOld (drone: DroneBrain) (destination: Coordinate) (gameLogic: GameLogic.GameLogic): IAction * bool =
-                stderr.WriteLine $"droneId: {drone.Drone.Id}"
-                let destinationVector = DroneLogic.destinationVector drone.Drone destination |> tap (fun vector -> stderr.WriteLine $"destinationVector: {vector}")
-                let monsterVectors = threatMonsters drone |> monsterVectors drone.Drone |> tap (fun vectors -> stderr.WriteLine $"monsterVectors: {vectors}")
-                let resultVector = moveVector drone.Drone destinationVector monsterVectors |> tap (fun vector -> stderr.WriteLine $"resultVector: {vector}")
-                let reach = isReachDestination drone.Drone destination |> tap (fun isReach -> stderr.WriteLine $"isReach: {isReach}")
-
-                Move(DroneLogic.moveCoordinate drone.Drone resultVector, if reach then 1 else 0), reach
-            
             let move (drone: DroneBrain) (destination: Coordinate) (gameLogic: GameLogic.GameLogic): IAction * bool =
                 let reach = isReachDestination drone.Drone destination || gameLogic.CurrentTurn % 5 = 4
                 
